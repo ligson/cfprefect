@@ -10,6 +10,11 @@
   - Release Notes 自动提取 `CHANGELOG.md` 最新一节
   - 使用固定 `main-latest` 滚动发布主干最新构建
 
+### Bug Fixes
+- **Android CI 构建失败**
+  - 移除 `android/gradle.properties` 中写死的本地代理配置
+  - 避免 GitHub Actions runner 连接 `127.0.0.1:7897` 导致 Gradle 下载失败
+
 ## [2026-04-19]
 
 ### Features
