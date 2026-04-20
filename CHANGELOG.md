@@ -2,6 +2,11 @@
 
 ## [2026-04-20]
 
+### Documentation
+- **README 完善**
+  - 补充项目介绍、功能特性、使用说明、开发环境和自动发版说明
+  - 补充 Clash 配置处理逻辑、目录结构和关键文件说明
+
 ### CI/CD
 - **GitHub Actions 自动发版**
   - 新增 `.github/workflows/release.yml`
