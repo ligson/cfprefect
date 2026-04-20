@@ -1,0 +1,248 @@
+name: Release Main Builds
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.41.7
+  RELEASE_TAG: main-latest
+
+jobs:
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Read app version
+        id: version
+        shell: bash
+        run: |
+          version=$(grep '^version:' pubspec.yaml | sed 's/version: //' | cut -d+ -f1 | tr -d '[:space:]')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build macOS release
+        run: flutter build macos --release
+
+      - name: Package macOS app
+        shell: bash
+        run: |
+          app_path=$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)
+          if [ -z "$app_path" ]; then
+            echo 'macOS app bundle not found.' >&2
+            exit 1
+          fi
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "dist/ip-optimizer-macos-v${{ steps.version.outputs.version }}.zip"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: dist/*.zip
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Read app version
+        id: version
+        shell: bash
+        run: |
+          version=$(grep '^version:' pubspec.yaml | sed 's/version: //' | cut -d+ -f1 | tr -d '[:space:]')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Package Windows app
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "dist/ip-optimizer-windows-v${{ steps.version.outputs.version }}.zip" -Force
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: dist/*.zip
+          if-no-files-found: error
+
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Read app version
+        id: version
+        shell: bash
+        run: |
+          version=$(grep '^version:' pubspec.yaml | sed 's/version: //' | cut -d+ -f1 | tr -d '[:space:]')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Prepare Android artifact
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/ip-optimizer-android-v${{ steps.version.outputs.version }}.apk"
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: dist/*.apk
+          if-no-files-found: error
+
+  release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs:
+      - build-macos
+      - build-windows
+      - build-android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          version=$(grep '^version:' pubspec.yaml | sed 's/version: //' | cut -d+ -f1 | tr -d '[:space:]')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract latest changelog section
+        id: notes
+        shell: bash
+        run: |
+          awk '
+            /^## \[/ {
+              if (started) exit
+              started=1
+            }
+            started { print }
+          ' CHANGELOG.md > release_notes.md
+
+          if [ ! -s release_notes.md ]; then
+            echo 'Failed to extract latest changelog section.' >&2
+            exit 1
+          fi
+
+      - name: Ensure rolling release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --target "$GITHUB_SHA" \
+              --title "Main Build v${{ steps.version.outputs.version }} (${{ steps.version.outputs.short_sha }})" \
+              --notes-file release_notes.md
+          fi
+
+      - name: Move rolling tag to current commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api \
+            --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/git/refs/tags/$RELEASE_TAG" \
+            -f sha="$GITHUB_SHA" \
+            -F force=true
+
+      - name: Remove previous assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | while read -r asset_name; do
+            [ -n "$asset_name" ] || continue
+            gh release delete-asset "$RELEASE_TAG" "$asset_name" --yes
+          done
+
+      - name: Upload assets to rolling release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release upload "$RELEASE_TAG" \
+            artifacts/android-release/*.apk \
+            artifacts/macos-release/*.zip \
+            artifacts/windows-release/*.zip \
+            --clobber
+
+      - name: Update release metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release edit "$RELEASE_TAG" \
+            --title "Main Build v${{ steps.version.outputs.version }} (${{ steps.version.outputs.short_sha }})" \
+            --notes-file release_notes.md \
+            --latest
