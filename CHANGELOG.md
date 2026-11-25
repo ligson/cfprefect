@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-25
+
+### Features
+- 扫描完成后可自动把当前设备的候选 IP 上传到 Network Center。服务端订阅会立即使用新的设备级候选池，FlClash 只需手动刷新订阅。
+
 ## [2026-04-20]
 
 ### Documentation

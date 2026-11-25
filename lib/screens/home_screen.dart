@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import '../services/cloudflare_service.dart';
 import '../services/ping_service.dart';
 import '../services/clash_config_service.dart';
+import '../services/network_center_service.dart';
 import '../widgets/ip_list_widget.dart';
 import '../theme/app_theme.dart';
 
@@ -26,6 +27,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // 配置参数
   int _timeoutSeconds = 1;
   int _ipsPerCidr = 100;
+  String _networkCenterUrl = 'https://network.ligson.xyz';
+  String _deviceToken = '';
+  String _profile = 'chenws-us';
 
   // 进度相关
   int _progressCurrent = 0;
@@ -143,6 +147,14 @@ class _HomeScreenState extends State<HomeScreen> {
           _isLoading = false;
           _estimatedTimeRemaining = '';
         });
+        if (results.isNotEmpty && _deviceToken.trim().isNotEmpty) {
+          try {
+            final count = await NetworkCenterService(baseUrl: _networkCenterUrl, deviceToken: _deviceToken.trim()).uploadCandidates(profile: _profile, candidates: results);
+            if (mounted) setState(() => _statusMessage += '\n已自动上传 $count 个候选 IP');
+          } catch (error) {
+            if (mounted) setState(() => _statusMessage += '\n上传服务端失败：$error');
+          }
+        }
       }
     } catch (e) {
       debugPrint('IP 获取错误: $e');
@@ -205,6 +217,9 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) {
         int tempTimeout = _timeoutSeconds;
         int tempIpsPerCidr = _ipsPerCidr;
+        final urlController = TextEditingController(text: _networkCenterUrl);
+        final tokenController = TextEditingController(text: _deviceToken);
+        final profileController = TextEditingController(text: _profile);
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -284,6 +299,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
 
+                  TextField(controller: urlController, decoration: const InputDecoration(labelText: 'Network Center 地址')),
+                  const SizedBox(height: 8),
+                  TextField(controller: tokenController, decoration: const InputDecoration(labelText: '设备分享 Token')),
+                  const SizedBox(height: 8),
+                  TextField(controller: profileController, decoration: const InputDecoration(labelText: '服务端标识')),
+                  const SizedBox(height: 16),
+
                   // 预计总数
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -318,6 +340,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     setState(() {
                       _timeoutSeconds = tempTimeout;
                       _ipsPerCidr = tempIpsPerCidr;
+                      _networkCenterUrl = urlController.text.trim();
+                      _deviceToken = tokenController.text.trim();
+                      _profile = profileController.text.trim();
                     });
                     Navigator.pop(context);
                   },
