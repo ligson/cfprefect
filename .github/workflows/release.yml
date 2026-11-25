@@ -146,7 +146,6 @@ jobs:
         run: |
           flutter --version
           java -version
-          flutter doctor --android-licenses || true
           flutter doctor -v
 
       - name: Read app version

@@ -4,6 +4,7 @@
 
 ### CI/CD
 - 修复 Android GitHub Actions 构建依赖本机 `android/local.properties` 的问题。工作流现在在 Ubuntu runner 上动态写入 Flutter SDK 和 Android SDK 路径，并输出 Android 工具链诊断信息。
+- 移除 Android 工作流中会等待交互输入的 `flutter doctor --android-licenses`，避免 GitHub Actions 长时间停在工具链检查步骤。
 
 ## 2026-11-25
 
