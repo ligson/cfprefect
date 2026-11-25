@@ -29,7 +29,6 @@ class _HomeScreenState extends State<HomeScreen> {
   int _ipsPerCidr = 100;
   String _networkCenterUrl = 'https://network.ligson.xyz';
   String _deviceToken = '';
-  String _profile = 'chenws-us';
 
   // 进度相关
   int _progressCurrent = 0;
@@ -55,6 +54,18 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
+      String? tunnelHost;
+      if (_deviceToken.trim().isNotEmpty) {
+        setState(() => _statusMessage = '正在读取设备的 Cloudflare Tunnel 配置...');
+        final endpoint = await NetworkCenterService(
+          baseUrl: _networkCenterUrl,
+          deviceToken: _deviceToken.trim(),
+        ).fetchDeviceEndpoint();
+        if (endpoint.relayMode == 'cloudflare' &&
+            endpoint.serverName.isNotEmpty) {
+          tunnelHost = endpoint.serverName;
+        }
+      }
       debugPrint('[HomeScreen] 开始获取 IP...');
       final cidrs = await CloudflareService.fetchCloudflareIPs();
       debugPrint('[HomeScreen] 获取到 ${cidrs.length} 个 CIDR');
@@ -68,7 +79,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _statusMessage = '正在生成 IP 地址...';
       });
 
-      final ips = await CloudflareService.extractBaseIPs(cidrs, maxPerCidr: _ipsPerCidr);
+      final ips = await CloudflareService.extractBaseIPs(
+        cidrs,
+        maxPerCidr: _ipsPerCidr,
+      );
       debugPrint('[HomeScreen] 生成 ${ips.length} 个 IP');
 
       if (_isCancelled) {
@@ -89,12 +103,15 @@ class _HomeScreenState extends State<HomeScreen> {
         _statusMessage = '开始扫描...';
         _scanLog.add('📊 共 ${ips.length} 个 IP 待测试');
         _scanLog.add('⏱️ 超时设置: ${_timeoutSeconds}s');
-        _scanLog.add('⏳ 预计时间: ${estimatedMinutes > 0 ? '$estimatedMinutes 分 ' : ''}$estimatedSecs 秒');
+        _scanLog.add(
+          '⏳ 预计时间: ${estimatedMinutes > 0 ? '$estimatedMinutes 分 ' : ''}$estimatedSecs 秒',
+        );
       });
 
       final results = await PingService.testMultipleIPs(
         ips,
         timeout: Duration(seconds: _timeoutSeconds),
+        host: tunnelHost,
         onProgress: (completed, total, currentIP) {
           if (_isCancelled) return;
           if (mounted) {
@@ -143,14 +160,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
         setState(() {
           _ipList = results;
-          _statusMessage = '扫描完成！找到 ${results.length} 个可用 IP\n耗时: ${totalMin > 0 ? '$totalMin 分 ' : ''}$totalSec 秒';
+          _statusMessage =
+              '扫描完成！找到 ${results.length} 个可用 IP\n耗时: ${totalMin > 0 ? '$totalMin 分 ' : ''}$totalSec 秒';
           _isLoading = false;
           _estimatedTimeRemaining = '';
         });
         if (results.isNotEmpty && _deviceToken.trim().isNotEmpty) {
           try {
-            final count = await NetworkCenterService(baseUrl: _networkCenterUrl, deviceToken: _deviceToken.trim()).uploadCandidates(profile: _profile, candidates: results);
-            if (mounted) setState(() => _statusMessage += '\n已自动上传 $count 个候选 IP');
+            final count = await NetworkCenterService(
+              baseUrl: _networkCenterUrl,
+              deviceToken: _deviceToken.trim(),
+            ).uploadCandidates(candidates: results);
+            if (mounted)
+              setState(() => _statusMessage += '\n已自动上传 $count 个候选 IP');
           } catch (error) {
             if (mounted) setState(() => _statusMessage += '\n上传服务端失败：$error');
           }
@@ -219,7 +241,6 @@ class _HomeScreenState extends State<HomeScreen> {
         int tempIpsPerCidr = _ipsPerCidr;
         final urlController = TextEditingController(text: _networkCenterUrl);
         final tokenController = TextEditingController(text: _deviceToken);
-        final profileController = TextEditingController(text: _profile);
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -235,7 +256,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkCardBackground : AppColors.infoLight,
+                      color: isDark
+                          ? AppColors.darkCardBackground
+                          : AppColors.infoLight,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -246,7 +269,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Text(
                             '超时时间 (秒)',
                             style: TextStyle(
-                              color: isDark ? Colors.white : AppColors.textPrimary,
+                              color: isDark
+                                  ? Colors.white
+                                  : AppColors.textPrimary,
                             ),
                           ),
                         ),
@@ -269,7 +294,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkCardBackground : AppColors.successLight,
+                      color: isDark
+                          ? AppColors.darkCardBackground
+                          : AppColors.successLight,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -280,7 +307,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Text(
                             '每段扫描数量',
                             style: TextStyle(
-                              color: isDark ? Colors.white : AppColors.textPrimary,
+                              color: isDark
+                                  ? Colors.white
+                                  : AppColors.textPrimary,
                             ),
                           ),
                         ),
@@ -299,11 +328,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  TextField(controller: urlController, decoration: const InputDecoration(labelText: 'Network Center 地址')),
+                  TextField(
+                    controller: urlController,
+                    decoration: const InputDecoration(
+                      labelText: 'Network Center 地址',
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  TextField(controller: tokenController, decoration: const InputDecoration(labelText: '设备分享 Token')),
+                  TextField(
+                    controller: tokenController,
+                    decoration: const InputDecoration(labelText: '设备分享 Token'),
+                  ),
                   const SizedBox(height: 8),
-                  TextField(controller: profileController, decoration: const InputDecoration(labelText: '服务端标识')),
                   const SizedBox(height: 16),
 
                   // 预计总数
@@ -316,12 +352,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.calculate, size: 16, color: isDark ? Colors.grey[400] : AppColors.textSecondary),
+                        Icon(
+                          Icons.calculate,
+                          size: 16,
+                          color: isDark
+                              ? Colors.grey[400]
+                              : AppColors.textSecondary,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           '预计总 IP 数: ${tempIpsPerCidr * 15}',
                           style: TextStyle(
-                            color: isDark ? Colors.grey[400] : AppColors.textSecondary,
+                            color: isDark
+                                ? Colors.grey[400]
+                                : AppColors.textSecondary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -342,7 +386,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       _ipsPerCidr = tempIpsPerCidr;
                       _networkCenterUrl = urlController.text.trim();
                       _deviceToken = tokenController.text.trim();
-                      _profile = profileController.text.trim();
                     });
                     Navigator.pop(context);
                   },
@@ -389,7 +432,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildControlButton(IconData icon, VoidCallback? onPressed, bool isDark) {
+  Widget _buildControlButton(
+    IconData icon,
+    VoidCallback? onPressed,
+    bool isDark,
+  ) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -445,7 +492,9 @@ class _HomeScreenState extends State<HomeScreen> {
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: _isLoading ? AppColors.infoLight : AppColors.primaryLight,
+                color: _isLoading
+                    ? AppColors.infoLight
+                    : AppColors.primaryLight,
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -485,8 +534,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: LinearProgressIndicator(
                         value: _progressCurrent / _progressTotal,
                         minHeight: 8,
-                        backgroundColor: isDark ? Colors.grey[700] : Colors.grey[200],
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        backgroundColor: isDark
+                            ? Colors.grey[700]
+                            : Colors.grey[200],
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          AppColors.primary,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -502,7 +555,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         if (_estimatedTimeRemaining.isNotEmpty)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.infoLight,
                               borderRadius: BorderRadius.circular(16),
@@ -510,7 +566,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.timer_outlined, size: 14, color: AppColors.primary),
+                                const Icon(
+                                  Icons.timer_outlined,
+                                  size: 14,
+                                  color: AppColors.primary,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   _estimatedTimeRemaining,
@@ -538,7 +598,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF8F9FA),
+                  color: isDark
+                      ? const Color(0xFF1A1A1A)
+                      : const Color(0xFFF8F9FA),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isDark ? Colors.grey[700]! : AppColors.border,
@@ -549,14 +611,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.history, size: 16, color: isDark ? Colors.grey[400] : AppColors.textSecondary),
+                        Icon(
+                          Icons.history,
+                          size: 16,
+                          color: isDark
+                              ? Colors.grey[400]
+                              : AppColors.textSecondary,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           '扫描日志',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.grey[400] : AppColors.textSecondary,
+                            color: isDark
+                                ? Colors.grey[400]
+                                : AppColors.textSecondary,
                           ),
                         ),
                       ],
@@ -576,9 +646,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Row(
                               children: [
                                 Icon(
-                                  isSuccess ? Icons.check_circle : Icons.info_outline,
+                                  isSuccess
+                                      ? Icons.check_circle
+                                      : Icons.info_outline,
                                   size: 14,
-                                  color: isSuccess ? AppColors.success : (isDark ? Colors.grey[500] : AppColors.textSecondary),
+                                  color: isSuccess
+                                      ? AppColors.success
+                                      : (isDark
+                                            ? Colors.grey[500]
+                                            : AppColors.textSecondary),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -589,7 +665,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                       fontFamily: 'monospace',
                                       color: isSuccess
                                           ? AppColors.success
-                                          : (isDark ? Colors.grey[300] : AppColors.textPrimary),
+                                          : (isDark
+                                                ? Colors.grey[300]
+                                                : AppColors.textPrimary),
                                     ),
                                   ),
                                 ),
@@ -649,7 +727,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ? AppColors.success.withOpacity(0.15)
                 : AppColors.successLight,
             border: Border(
-              bottom: BorderSide(color: isDark ? Colors.grey[700]! : AppColors.border),
+              bottom: BorderSide(
+                color: isDark ? Colors.grey[700]! : AppColors.border,
+              ),
             ),
           ),
           child: Row(
@@ -658,7 +738,9 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.success.withOpacity(0.2) : Colors.white,
+                  color: isDark
+                      ? AppColors.success.withOpacity(0.2)
+                      : Colors.white,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -749,7 +831,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: _selectedIP != null && _clashConfigPath != null
+                        onPressed:
+                            _selectedIP != null && _clashConfigPath != null
                             ? _applyToClashConfig
                             : null,
                         icon: const Icon(Icons.done),
@@ -793,9 +876,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// 选择 Clash 配置文件
   Future<void> _pickClashConfig() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-      );
+      final result = await FilePicker.platform.pickFiles(type: FileType.any);
 
       if (result != null && result.files.single.path != null) {
         setState(() {
@@ -805,9 +886,9 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('选择文件失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('选择文件失败: $e')));
       }
     }
   }
@@ -815,16 +896,16 @@ class _HomeScreenState extends State<HomeScreen> {
   /// 应用优选 IP 到 Clash 配置文件
   Future<void> _applyToClashConfig() async {
     if (_selectedIP == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先选择一个 IP')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请先选择一个 IP')));
       return;
     }
 
     if (_clashConfigPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先选择 Clash 配置文件')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请先选择 Clash 配置文件')));
       return;
     }
 
@@ -858,10 +939,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _statusMessage = '更新失败: $e';
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('更新失败: $e'),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text('更新失败: $e'), backgroundColor: AppColors.error),
         );
       }
     }

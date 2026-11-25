@@ -5,26 +5,35 @@ class IPLatency {
   final int latency;
   final bool success;
 
-  IPLatency({
-    required this.ip,
-    required this.latency,
-    required this.success,
-  });
+  IPLatency({required this.ip, required this.latency, required this.success});
 
   @override
   String toString() => '$ip: ${success ? '$latency ms' : 'timeout'}';
 }
 
 class PingService {
-  static const int _concurrentLimit = 10;  // 模拟器性能有限，限制并发数避免崩溃
+  static const int _concurrentLimit = 10; // 模拟器性能有限，限制并发数避免崩溃
 
-  static Future<IPLatency> testLatency(String ip, Duration timeout) async {
+  static Future<IPLatency> testLatency(
+    String ip,
+    Duration timeout, {
+    String? host,
+  }) async {
     final stopwatch = Stopwatch()..start();
     final client = http.Client();
     try {
-      await client.get(
-        Uri.parse('http://$ip:80'),
-      ).timeout(timeout);
+      final request = http.Request(
+        'GET',
+        Uri.parse('http://$ip:80/cdn-cgi/trace'),
+      );
+      if (host != null && host.trim().isNotEmpty) {
+        request.headers['Host'] = host.trim();
+      }
+      final response = await client.send(request).timeout(timeout);
+      if (response.statusCode < 200 || response.statusCode >= 500) {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+      await response.stream.drain();
       stopwatch.stop();
       return IPLatency(
         ip: ip,
@@ -33,11 +42,7 @@ class PingService {
       );
     } catch (e) {
       stopwatch.stop();
-      return IPLatency(
-        ip: ip,
-        latency: 9999,
-        success: false,
-      );
+      return IPLatency(ip: ip, latency: 9999, success: false);
     } finally {
       client.close();
     }
@@ -50,6 +55,7 @@ class PingService {
   static Future<List<IPLatency>> testMultipleIPs(
     List<String> ips, {
     Duration timeout = const Duration(seconds: 1),
+    String? host,
     void Function(int completed, int total, String currentIP)? onProgress,
     void Function(IPLatency result)? onResult,
   }) async {
@@ -62,7 +68,7 @@ class PingService {
 
       final futures = batch.map((ip) async {
         onProgress?.call(completed, ips.length, ip);
-        final result = await testLatency(ip, timeout);
+        final result = await testLatency(ip, timeout, host: host);
         completed++;
         onProgress?.call(completed, ips.length, ip);
         onResult?.call(result);
