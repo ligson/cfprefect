@@ -2,6 +2,11 @@
 
 ## 2026-11-25
 
+### CI/CD
+- 修复 Android GitHub Actions 构建依赖本机 `android/local.properties` 的问题。工作流现在在 Ubuntu runner 上动态写入 Flutter SDK 和 Android SDK 路径，并输出 Android 工具链诊断信息。
+
+## 2026-11-25
+
 ### Features
 - 扫描完成后可自动把当前设备的候选 IP 上传到 Network Center。服务端订阅会立即使用新的设备级候选池，FlClash 只需手动刷新订阅。
 

@@ -126,6 +126,29 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Prepare Android local properties
+        shell: bash
+        run: |
+          flutter_bin=$(command -v flutter)
+          flutter_sdk=$(cd "$(dirname "$flutter_bin")/.." && pwd)
+          android_sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [ -z "$android_sdk" ]; then
+            echo 'Android SDK path is not available on the runner.' >&2
+            exit 1
+          fi
+          {
+            printf 'flutter.sdk=%s\n' "$flutter_sdk"
+            printf 'sdk.dir=%s\n' "$android_sdk"
+            printf 'flutter.buildMode=release\n'
+          } > android/local.properties
+
+      - name: Verify Android toolchain
+        run: |
+          flutter --version
+          java -version
+          flutter doctor --android-licenses || true
+          flutter doctor -v
+
       - name: Read app version
         id: version
         shell: bash
