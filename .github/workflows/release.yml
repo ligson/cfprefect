@@ -202,7 +202,7 @@ jobs:
         shell: bash
         run: |
           awk '
-            /^## \[/ {
+            /^## (\[[^]]+\]|[0-9]{4}-[0-9]{2}-[0-9]{2})/ {
               if (started) exit
               started=1
             }
@@ -268,3 +268,28 @@ jobs:
             --title "Main Build v${{ steps.version.outputs.version }} (${{ steps.version.outputs.short_sha }})" \
             --notes-file release_notes.md \
             --latest
+
+      - name: Ensure versioned release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VERSION_TAG="v${{ steps.version.outputs.version }}"
+          if ! gh release view "$VERSION_TAG" >/dev/null 2>&1; then
+            gh release create "$VERSION_TAG" \
+              --target "$GITHUB_SHA" \
+              --title "IP Optimizer v${{ steps.version.outputs.version }}" \
+              --notes-file release_notes.md
+          fi
+
+      - name: Upload versioned release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VERSION_TAG="v${{ steps.version.outputs.version }}"
+          gh release upload "$VERSION_TAG" \
+            artifacts/android-release/*.apk \
+            artifacts/macos-release/*.zip \
+            artifacts/windows-release/*.zip \
+            --clobber
