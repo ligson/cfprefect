@@ -5,6 +5,7 @@ import '../services/cloudflare_service.dart';
 import '../services/ping_service.dart';
 import '../services/clash_config_service.dart';
 import '../services/network_center_service.dart';
+import '../services/update_service.dart';
 import '../widgets/ip_list_widget.dart';
 import '../theme/app_theme.dart';
 
@@ -233,6 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showSettingsDialog() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final updateFuture = UpdateService.loadStatus();
 
     showDialog(
       context: context,
@@ -246,6 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: const Text('扫描设置'),
+              scrollable: true,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -339,8 +342,66 @@ class _HomeScreenState extends State<HomeScreen> {
                     controller: tokenController,
                     decoration: const InputDecoration(labelText: '设备分享 Token'),
                   ),
-                  const SizedBox(height: 8),
                   const SizedBox(height: 16),
+
+                  FutureBuilder<UpdateStatus>(
+                    future: updateFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.info_outline),
+                          title: Text('正在检查版本...'),
+                        );
+                      }
+                      if (snapshot.hasError || snapshot.data == null) {
+                        return const ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.info_outline),
+                          title: Text('版本信息暂时不可用'),
+                          subtitle: Text('请检查网络后重新打开设置'),
+                        );
+                      }
+                      final status = snapshot.data!;
+                      final latest = status.latest;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.system_update_outlined),
+                            title: Text('当前版本 ${status.currentVersion}'),
+                            subtitle: Text(
+                              latest == null
+                                  ? '暂无公开版本信息'
+                                  : status.hasUpdate
+                                  ? '发现新版本 ${latest.version}'
+                                  : '已是最新版本',
+                            ),
+                            trailing: latest == null
+                                ? null
+                                : TextButton.icon(
+                                    onPressed: () =>
+                                        UpdateService.openRelease(latest),
+                                    icon: const Icon(Icons.download_outlined),
+                                    label: Text(
+                                      status.hasUpdate ? '更新' : '下载页',
+                                    ),
+                                  ),
+                          ),
+                          if (status.releases.isNotEmpty)
+                            ExpansionTile(
+                              tilePadding: EdgeInsets.zero,
+                              childrenPadding: EdgeInsets.zero,
+                              title: const Text('版本改动记录'),
+                              children: status.releases
+                                  .map((release) => _releaseTile(release))
+                                  .toList(),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
 
                   // 预计总数
                   Container(
@@ -396,6 +457,16 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         );
       },
+    );
+  }
+
+  Widget _releaseTile(ReleaseInfo release) {
+    final body = release.body.isEmpty ? '此版本没有发布说明。' : release.body;
+    return ListTile(
+      contentPadding: const EdgeInsets.only(left: 16, right: 8),
+      title: Text('${release.tag}  ${release.title}'),
+      subtitle: Text(body, maxLines: 6, overflow: TextOverflow.ellipsis),
+      onTap: () => UpdateService.openRelease(release),
     );
   }
 

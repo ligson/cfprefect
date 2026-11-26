@@ -11,6 +11,7 @@
 ## 2026-11-25
 
 ### Features
+- 设置中增加当前版本、最新 Release 检查、下载入口和版本改动记录，改动内容直接读取 GitHub Release Notes。
 - 扫描完成后可自动把当前设备的候选 IP 上传到 Network Center。服务端订阅会立即使用新的设备级候选池，FlClash 只需手动刷新订阅。
 - Cloudflare 模式上传候选 IP 改为由设备分享 Token 自动识别绑定服务端，客户端不再要求填写服务端标识。
 - Cloudflare 扫描会先读取设备对应的 Tunnel 域名，并使用该域名作为 Host 测试候选 IP，避免把裸 IP 延迟当成 Tunnel 链路速度。
