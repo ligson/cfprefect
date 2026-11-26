@@ -1,4 +1,4 @@
-name: Release Main Builds
+name: Release Tagged Builds
 
 on:
   push:
