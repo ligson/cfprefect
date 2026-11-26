@@ -77,3 +77,12 @@ lib/
 
 - 每次改动记录到 CHANGELOG.md
 - 重要开发规则更新到 docs/development_rules.md
+
+## 发版规则
+
+- 普通代码提交只推送到 `main`，不得触发安装包构建或 GitHub Release。
+- 只有推送 `vX.Y.Z` 格式的 Tag 才触发 `.github/workflows/release.yml`。
+- Tag 必须与 `pubspec.yaml` 的版本号一致，否则工作流直接失败。
+- 明确收到发版要求后，使用 `./scripts/release.sh` 自动递增补丁版本号、提交版本变更、创建 Tag 并推送。
+- 发版前先更新 `CHANGELOG.md`，Release Notes 使用最新章节。
+- 已发布的版本 Tag 不重复移动，不使用滚动的 `main-latest` Release。

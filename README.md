@@ -187,15 +187,31 @@ adb shell "settings put global http_proxy 10.0.2.2:7897"
 
 仓库已配置 GitHub Actions 自动发版流程：
 
-- 触发条件：push 到 `main`
+- 触发条件：只响应符合 `vX.Y.Z` 格式的 Git Tag
 - 构建产物：macOS、Windows、Android APK
 - 发布位置：GitHub Release
 - Release Notes：自动提取 `CHANGELOG.md` 最新一节
-- 发布方式：使用固定 `main-latest` 滚动发布主干最新构建
+- 版本校验：Tag 必须与 `pubspec.yaml` 中的版本一致
+- 普通推送：只更新代码，不触发构建和发布
+
+明确需要发版时，在工作区干净的情况下执行：
+
+```bash
+./scripts/release.sh
+```
+
+脚本会自动将补丁版本号加一，提交 `pubspec.yaml`，创建并推送对应的 `vX.Y.Z` Tag。也可以指定版本：
+
+```bash
+./scripts/release.sh --version 1.2.0
+```
+
+推送 Tag 后，GitHub Actions 才会构建三个平台并创建对应的版本 Release。
 
 工作流文件：
 
 - `.github/workflows/release.yml`
+- `scripts/release.sh`
 
 ## 更新日志
 

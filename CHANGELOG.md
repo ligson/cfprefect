@@ -3,6 +3,7 @@
 ## 2026-11-25
 
 ### CI/CD
+- 调整 GitHub Actions 发版规则：普通 `main` 推送不再构建，只有与 `pubspec.yaml` 版本一致的 `vX.Y.Z` Tag 才构建并发布版本 Release；新增 `scripts/release.sh` 简化版本递增、提交、打 Tag 和推送流程。
 - 修复 Android GitHub Actions 构建依赖本机 `android/local.properties` 的问题。工作流现在在 Ubuntu runner 上动态写入 Flutter SDK 和 Android SDK 路径，并输出 Android 工具链诊断信息。
 - 移除 Android 工作流中会等待交互输入的 `flutter doctor --android-licenses`，避免 GitHub Actions 长时间停在工具链检查步骤。
 - Release 工作流增加版本标签发布，同时保留 `main-latest` 滚动发布，更新日志支持日期格式章节。

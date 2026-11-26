@@ -71,6 +71,14 @@ adb shell "settings put global http_proxy 10.0.2.2:7897"
 5. 点击 "更新配置" 按钮
 6. 重新加载 Clash 配置
 
+## 发版流程
+
+- 普通推送到 `main` 不会触发 GitHub Actions 构建。
+- 只有 `vX.Y.Z` Tag 会触发 macOS、Windows 和 Android 构建并创建版本 Release。
+- 明确需要发版时，先更新 `CHANGELOG.md`，再执行 `./scripts/release.sh`。
+- 脚本自动递增补丁版本、提交 `pubspec.yaml`、创建 Tag 并推送。
+- 也可以使用 `./scripts/release.sh --version 1.2.0` 指定版本。
+
 ## 开发环境要求
 - Flutter SDK >= 3.0
 - Dart >= 3.0
